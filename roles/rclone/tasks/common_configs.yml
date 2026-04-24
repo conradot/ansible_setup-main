@@ -1,0 +1,59 @@
+- name: 1. Garantir diretórios base
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ lookup('env', 'HOME') }}/.local/bin"
+    - "{{ lookup('env', 'HOME') }}/.config/systemd/user"
+
+- name: 2. Instalar Rclone (Método robusto)
+  shell: |
+    TEMP_DIR=$(mktemp -d)
+    curl -L https://downloads.rclone.org/rclone-current-linux-amd64.zip -o $TEMP_DIR/rclone.zip
+    unzip -j $TEMP_DIR/rclone.zip 'rclone-*-linux-amd64/rclone' -d {{ lookup('env', 'HOME') }}/.local/bin
+    chmod +x {{ lookup('env', 'HOME') }}/.local/bin/rclone
+    rm -rf $TEMP_DIR
+  args:
+    creates: "{{ lookup('env', 'HOME') }}/.local/bin/rclone"
+
+- name: 3. Criar o script de sincronização
+  copy:
+    dest: "{{ lookup('env', 'HOME') }}/.local/bin/rclone-sync.sh"
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      # Script gerado via Ansible
+      {% for folder in rclone_sync_folders %}
+      {{ lookup('env', 'HOME') }}/.local/bin/rclone bisync {{ lookup('env', 'HOME') }}/{{ folder }} {{ rclone_remote_name }}:{{ folder }} --conflict-resolve newer --verbose
+      {% endfor %}
+
+- name: 4. Configurar Unidades de Serviço (User)
+  copy:
+    dest: "{{ lookup('env', 'HOME') }}/.config/systemd/user/{{ item.name }}"
+    content: "{{ item.content }}"
+  loop:
+    - name: "rclone-bisync.service"
+      content: |
+        [Unit]
+        Description=Sincronizacao Bidirecional Rclone
+        [Service]
+        Type=oneshot
+        ExecStart={{ lookup('env', 'HOME') }}/.local/bin/rclone-sync.sh
+    - name: "rclone-bisync.timer"
+      content: |
+        [Unit]
+        Description=Timer para rclone bisync
+        [Timer]
+        OnBootSec=5min
+        OnUnitActiveSec=15min
+        [Install]
+        WantedBy=timers.target
+
+- name: 5. Ativar o Timer
+  systemd:
+    name: rclone-bisync.timer
+    scope: user
+    state: started
+    enabled: yes
+    daemon_reload: yes

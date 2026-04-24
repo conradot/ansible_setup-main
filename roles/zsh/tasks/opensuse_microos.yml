@@ -1,0 +1,5 @@
+---
+- name: "[Kalpa] Instalar Zsh"
+  community.general.zypper:
+    name: zsh
+    state: present

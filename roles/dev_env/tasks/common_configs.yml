@@ -1,0 +1,120 @@
+- name: Garantir diretório de manifestos do Distrobox
+  file:
+    path: "~/.config/distrobox"
+    state: directory
+    mode: '0755'
+
+- name: Gerar manifesto do Distrobox para dev-workspace
+  template:
+    src: distrobox.ini.j2
+    dest: "~/.config/distrobox/{{ dev_box_name }}.ini"
+    mode: '0644'
+
+- name: Criar e configurar container via Distrobox Assemble
+  command: "distrobox assemble create --file ~/.config/distrobox/{{ dev_box_name }}.ini"
+  register: assemble_result
+  changed_when: "'creating' in assemble_result.stdout.lower() or 'installing' in assemble_result.stdout.lower()"
+
+- name: Iniciar o container criado
+  command: "distrobox enter {{ dev_box_name }} -- true"
+  changed_when: false
+
+- name: Configurar Git Global
+  # Isso configura o git dentro do container para você já começar a usar
+  shell: |
+    distrobox enter {{ dev_box_name }} -- git config --global core.editor "code --wait"
+  ignore_errors: true
+  register: git_install
+
+- name: Exportar Git Global
+  # Isso configura o git dentro do container para você já começar a usar
+  shell: |
+        distrobox enter {{ dev_box_name }} -- distrobox-export --bin /usr/bin/git --export-path ~/.local/bin
+  ignore_errors: true
+  register: git_export
+
+- name: Adicionar Repositórios (VS Code)
+  shell: |
+    distrobox enter {{ dev_box_name }} -- sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
+    distrobox enter {{ dev_box_name }} -- sudo zypper addrepo https://packages.microsoft.com/yumrepos/vscode vscode
+  register: repo_result
+  # Falha apenas se o erro não for sobre o repositório já existir
+  failed_when: "repo_result.rc != 0 and 'already exists' not in repo_result.stderr"
+  # Só marca como "changed" se o repositório for de fato adicionado agora
+  changed_when: "repo_result.rc == 0"
+
+- name: Instalar Code no ambiente de Dev
+  # Usando zypper por ser a ferramenta nativa do Tumbleweed no seu container
+  command: "distrobox enter {{ dev_box_name }} -- sudo zypper --non-interactive install code"
+  register: code_install
+  changed_when: "'Installing' in code_install.stdout"
+  failed_when: 
+    - code_install.rc != 0 
+    - "'already installed' not in code_install.stderr"  
+
+
+- name: Configurar Repositório do Antigravity
+  shell: |
+    distrobox enter {{ dev_box_name }} -- sudo tee /etc/zypp/repos.d/antigravity.repo << EOL
+    [antigravity-rpm]
+    name=Antigravity RPM Repository
+    baseurl=https://us-central1-yum.pkg.dev/projects/antigravity-auto-updater-dev/antigravity-rpm
+    enabled=1
+    gpgcheck=0
+    EOL
+  register: antigravity_repo
+  changed_when: "'antigravity-rpm' in antigravity_repo.stdout"
+
+- name: Instalar Antigravity no ambiente de Dev
+  # Usando zypper por ser a ferramenta nativa do Tumbleweed no seu container
+  command: "distrobox enter {{ dev_box_name }} -- sudo zypper --non-interactive install antigravity"
+  register: antigravity_install
+  changed_when: "'Installing' in antigravity_install.stdout"
+  failed_when: 
+    - antigravity_install.rc != 0 
+    - "'already installed' not in antigravity_install.stderr"  
+
+
+- name: Instalar Ollama Client
+  shell: |
+    distrobox enter {{ dev_box_name }} -- bash -c "export OLLAMA_SKIP_SERVICE_INSTALL=1 && curl -fsSL https://ollama.com/install.sh | sh"
+  register: ollama_install
+
+- name: Exportar Ollama Client
+  shell: |
+    distrobox enter {{ dev_box_name }} -- distrobox-export --bin /usr/local/bin/ollama --export-path ~/.local/bin
+  register: ollama_export
+
+- name: Instalar o Open Code
+  shell: |
+    distrobox enter {{ dev_box_name }} -- bash -c "curl -fsSL https://opencode.ai/install | bash"
+  register: opencode_install
+  changed_when: "'Installing' in opencode_install.stdout"
+
+- name: Exportar o Open Code
+  # Adicionado host_cmd para poder executar a partir do container de automação
+  command: "distrobox enter {{ dev_box_name }} -- distrobox-export --bin ~/.opencode/bin/opencode --export-path ~/.local/bin"
+  ignore_errors: true
+  register: opencode_export
+
+
+- name: Exportar Apps para o Menu do Sistema
+  # Adicionado host_cmd
+  command: "distrobox enter {{ dev_box_name }} -- distrobox-export --app {{ item }}"
+  loop:
+    - code
+    - antigravity
+
+- name: Garantir PATH no arquivo de configuração do Shell
+  lineinfile:
+    # Alterado para .zshrc para alinhar com seu shell padrão configurado
+    path: "{{ lookup('env', 'HOME') }}/.zshrc"
+    line: 'export PATH="$HOME/.local/bin:$PATH"'
+    state: present
+    create: yes
+
+- name: Garantir PATH no .bashrc
+  lineinfile:
+        path: "{{ lookup('env', 'HOME') }}/.bashrc"
+        line: 'export PATH="$HOME/.local/bin:$PATH"'
+        state: present

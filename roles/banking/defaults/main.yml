@@ -1,0 +1,5 @@
+---
+banking_box_name: "banking-workspace"
+# Configurações de Banking
+warsaw_url: "https://guardiao.itau.com.br/warsaw/warsaw_opensuse.run"
+warsaw_rpm_name: "warsaw-2.21.9-2.x86_64.rpm"

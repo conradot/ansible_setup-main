@@ -1,0 +1,16 @@
+---
+dev_box_name: "dev-workspace"
+# Configurações do Fedora Dev (RPMs)
+# Adicionamos 'git' aqui para facilitar a gestão
+dev_packages:
+  - curl
+  - python3-pip
+  - git
+  - gcc
+  - gcc-c++
+  - python3-devel
+  - make
+  - tar
+  - wget
+  - gawk
+  - zstd

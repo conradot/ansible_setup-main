@@ -1,0 +1,31 @@
+---
+# Gerenciamento de Pastas e Plugins
+- name: Garantir que a pasta de plugins existe
+  file:
+    path: "{{ lookup('env', 'HOME') }}/.zsh-plugins"
+    state: directory
+    mode: '0755'
+
+- name: Baixar plugins do Zsh via Git
+  git:
+    repo: "{{ item.repo }}"
+    dest: "{{ lookup('env', 'HOME') }}/.zsh-plugins/{{ item.name }}"
+    depth: 1
+  loop:
+    - { name: 'zsh-autosuggestions', repo: 'https://github.com/zsh-users/zsh-autosuggestions' }
+    - { name: 'zsh-syntax-highlighting', repo: 'https://github.com/zsh-users/zsh-syntax-highlighting' }
+    - { name: 'zsh-history-substring-search', repo: 'https://github.com/zsh-users/zsh-history-substring-search' }
+
+# Configuração do .zshrc
+- name: Aplicar o arquivo .zshrc personalizado via Template
+  template:
+    src: zshrc.j2
+    dest: "{{ lookup('env', 'HOME') }}/.zshrc"
+    mode: '0644'
+
+# Shell Padrão
+- name: Definir Zsh como shell padrão do usuário
+  become: true
+  user:
+    name: "{{ lookup('env', 'USER') }}"
+    shell: /usr/bin/zsh

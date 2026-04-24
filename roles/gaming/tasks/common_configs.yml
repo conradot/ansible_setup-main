@@ -1,0 +1,19 @@
+- name: 1. Adicionar repositório Flathub (User)
+  flatpak_remote:
+    name: flathub
+    state: present
+    method: user
+    flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
+
+- name: 2. Instalar Steam e Ferramentas de Suporte
+  flatpak:
+    name: "{{ item }}"
+    state: present
+    method: user
+  loop: "{{ gaming_flatpaks }}"
+
+- name: 3. Criar script de otimização (Opcional - GameMode)
+  # O Kalpa/MicroOS já costuma vir com o gamemoded.
+  # Aqui garantimos que o usuário saiba como usá-lo.
+  debug:
+    msg: "Dica: No Steam, use 'gamemoderun %command%' nas opções de inicialização dos jogos."

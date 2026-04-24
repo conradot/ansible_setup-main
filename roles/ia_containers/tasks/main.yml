@@ -1,0 +1,6 @@
+---
+- name: Carregar tarefas por Distribuição
+  include_tasks: "{{ ansible_distribution | lower | replace(' ', '_') }}.yml"
+
+- name: Executar configurações comuns
+  include_tasks: common_configs.yml

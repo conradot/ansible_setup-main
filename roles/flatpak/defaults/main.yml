@@ -1,0 +1,6 @@
+---
+# Configurações de Apps Flatpak
+apps_flatpaks:
+  - com.google.Chrome
+  - com.spotify.Client
+  - io.github.shiftey.Desktop

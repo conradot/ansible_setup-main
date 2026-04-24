@@ -1,0 +1,11 @@
+---
+# Redes e Nomes
+# (Nomes de containers movidos para os defaults de cada role)
+
+#Interpreter
+ansible_python_interpreter: /usr/bin/python3
+
+# Imagens
+fedora_image: "fedora:latest"
+tumbleweed_image: "tumbleweed:latest"
+leap_image: "leap:latest"

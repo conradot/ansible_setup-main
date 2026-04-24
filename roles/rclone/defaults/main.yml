@@ -1,0 +1,11 @@
+---
+#Configurações do Rclone
+rclone_bin_dir: "{{ lookup('env', 'HOME') }}/.local/bin"
+rclone_config_dir: "{{ lookup('env', 'HOME') }}/.config/rclone"
+
+rclone_remote_name: "gdrive"
+rclone_sync_folders:
+  - Documentos
+  - Downloads
+  - Modelos
+  - Imagens

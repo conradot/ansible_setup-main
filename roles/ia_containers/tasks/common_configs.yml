@@ -1,0 +1,17 @@
+---
+- name: Criar rede interna para IA
+  containers.podman.podman_network:
+    name: "{{ ai_network_name }}"
+    state: present
+
+- name: Subir stack de containers IA
+  containers.podman.podman_container:
+    name: "{{ item.name }}"
+    image: "{{ item.image }}"
+    network: "{{ ai_network_name }}"
+    restart_policy: always
+    ports: "{{ item.ports | default(omit) }}"
+    volumes: "{{ item.volumes | default(omit) }}"
+    env: "{{ item.env | default(omit) }}"
+    state: started
+  loop: "{{ ia_stack }}"

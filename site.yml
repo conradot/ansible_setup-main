@@ -1,0 +1,24 @@
+---
+- name: Setup Master - Estação Kalpa IA
+  hosts: all
+  gather_facts: true
+
+  roles:
+    - role: ansible_box
+      tags: [ ansible, container, distrobox ]
+    - role: host_config
+      tags: [ host, boot, kernel, i2c, tpm2 ]
+    - role: ia_containers
+      tags: [ ia, container, podman, qdrant, ollama, openwebui ]
+    - role: dev_env
+      tags: [ fedora, dev, code, antigravity, vscode ]
+    - role: banking
+      tags: [ bank, tumbleweed, warsaw ]
+    - role: gaming
+      tags: [ steam, flatpak, game ]
+    - role: flatpak
+      tags: [ browser, flatpak, chrome, spotify, app, irpf, git ]
+    - role: rclone
+      tags: [ rclone, gdrive ]
+    - role: zsh
+      tags: [ zsh, setup ]

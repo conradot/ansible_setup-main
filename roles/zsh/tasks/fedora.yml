@@ -1,0 +1,5 @@
+---
+- name: "[Kinoite] Instalar Zsh"
+  ansible.posix.rpm_ostree:
+    name: zsh
+    state: present

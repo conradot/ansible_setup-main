@@ -1,0 +1,5 @@
+---
+# Configurações de Gaming (Flatpak)
+gaming_flatpaks:
+  - com.valvesoftware.Steam
+  - com.github.tchx84.Flatseal # Para gerenciar permissões de disco

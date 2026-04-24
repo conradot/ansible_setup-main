@@ -1,0 +1,73 @@
+- name: Criar Distrobox Leap para Banking
+  command: "distrobox create -n {{ banking_box_name }} --image {{ leap_image }} --yes"
+  args:
+    creates: "~/.local/share/containers/storage/volumes/{{ banking_box_name }}"
+
+- name: Verificar se a pasta de extração do Warsaw já existe
+  stat:
+    path: "{{ lookup('env', 'HOME') }}/warsaw_setup"
+  register: warsaw_dir
+
+- name: Instalar dependências gráficas no Leap
+  command: "distrobox enter {{ banking_box_name }} -- sudo zypper -n in libXcursor1 libXrender1 libXext6 libXfixes3 libXft2"
+  when: not warsaw_dir.stat.exists
+
+- name: Baixar instalador do Warsaw
+  get_url:
+    url: "{{ warsaw_url }}"
+    dest: /tmp/warsaw_opensuse.run
+    mode: '0755'
+  when: not warsaw_dir.stat.exists
+
+- name: Extrair instalador (Timeout para ignorar a GUI)
+  shell: |
+    # No Leap, o ambiente de bibliotecas é mais previsível
+    timeout 5s distrobox enter {{ banking_box_name }} -- bash -c "cd /tmp && /tmp/warsaw_opensuse.run" || true
+    distrobox enter {{ banking_box_name }} -- sudo umount -l /usr/local/share/fonts || true
+  args:
+    chdir: "{{ lookup('env', 'HOME') }}"
+  when: not warsaw_dir.stat.exists
+
+- name: Instalar Warsaw no Leap
+  shell: |
+    distrobox enter {{ banking_box_name }} -- sudo zypper -n in iproute2 tar wget
+    distrobox enter {{ banking_box_name }} -- bash -c "sudo zypper -n --no-gpg-checks in /tmp/warsaw_setup/warsaw*.rpm"
+  args:
+    chdir: "{{ lookup('env', 'HOME') }}"
+
+- name: Garantir diretório de serviços de usuário no Host
+  file:
+    path: "{{ lookup('env', 'HOME') }}/.config/systemd/user"
+    state: directory
+    mode: '0755'
+
+- name: Criar arquivo de serviço Systemd para o Warsaw
+  copy:
+    dest: "{{ lookup('env', 'HOME') }}/.config/systemd/user/warsaw-container.service"
+    content: |
+        [Unit]
+        Description=Servico Warsaw Banking no Distrobox
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        # Necessário para gestão de cgroups v2 no MicroOS/Kalpa
+        Delegate=yes
+        Type=forking
+
+        # O Distrobox entra e executa o core que se torna um daemon
+        ExecStart=/usr/bin/distrobox enter {{ banking_box_name }} -- sudo /usr/local/bin/warsaw/core
+
+        Restart=always
+        RestartSec=15
+
+        [Install]
+        WantedBy=default.target
+
+- name: Recarregar Daemon e Ativar Serviço do Warsaw
+  systemd:
+    name: warsaw-container.service
+    scope: user
+    state: started
+    enabled: yes
+    daemon_reload: yes

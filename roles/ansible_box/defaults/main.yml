@@ -1,0 +1,9 @@
+---
+ansible_box_name: "ansible-box"
+ansible_box_packages:
+  - python312
+  - ansible-lint
+  - ansible
+  - git
+  - podman
+  - distrobox

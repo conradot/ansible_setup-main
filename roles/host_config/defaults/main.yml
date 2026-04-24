@@ -1,0 +1,6 @@
+---
+host_user: "conradot"
+boot_timeout: 1
+kernel_params:
+  - "8250.nr_uarts=0"
+  - "tpm_tis.interrupts=0"

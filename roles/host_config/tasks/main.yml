@@ -1,0 +1,3 @@
+---
+- name: Carregar tarefas por Distribuição
+  include_tasks: "{{ ansible_distribution | lower | replace(' ', '_') }}.yml"
