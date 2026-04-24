@@ -2,16 +2,15 @@
   flatpak_remote:
     name: flathub
     state: present
-    method: system
+    method: user
     flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
 
 - name: 2. Instalar Apps via Flatpak
   flatpak:
     name: "{{ item }}"
     state: present
-    method: system
-  loop:
-    - "{{ apps_flatpaks }}"
+    method: user
+  loop: "{{ apps_flatpaks }}"
 
 - name: 3. Verificar se o Flatpaks estão instalados (Informativo)
   debug:

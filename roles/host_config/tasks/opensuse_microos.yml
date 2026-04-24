@@ -1,7 +1,9 @@
 ---
 # 1. Configuração do Brilho do Monitor (I2C)
-- name: Instalar pacotes para controle de brilho via transactional-update
-  command: transactional-update --non-interactive pkg install ddcutil i2c-tools
+- name: Instalar pacotes para controle de brilho e utilitários via
+    transactional-update
+  command: transactional-update --non-interactive pkg install ddcutil i2c-tools which
+  become: true
   register: i2c_pkg_install
   changed_when: "'Nothing to do' not in i2c_pkg_install.stdout"
 
@@ -10,12 +12,14 @@
     name: i2c
     state: present
     system: yes
+  become: true
 
 - name: Adicionar usuário ao grupo i2c
   user:
     name: "{{ host_user }}"
     groups: i2c
     append: yes
+  become: true
 
 - name: Configurar regras de Udev para I2C
   copy:
@@ -24,6 +28,7 @@
     owner: root
     group: root
     mode: "0644"
+  become: true
 
 - name: Configurar carga do módulo i2c-dev no boot
   copy:
@@ -32,34 +37,29 @@
     owner: root
     group: root
     mode: "0644"
+  become: true
 
 # 2. Configuração do Bootloader (sdbootutil)
 - name: Configurar timeout do systemd-boot
   command: "sdbootutil set-timeout {{ boot_timeout }}"
-  changed_when: false # sdbootutil doesn't report change status easily
+  become: true
+  changed_when: false
 
 # 3. Parâmetros do Kernel (/etc/kernel/cmdline)
 - name: Garantir parâmetros do kernel no /etc/kernel/cmdline
-  replace:
-    path: /etc/kernel/cmdline
-    regexp: "^((?!.*{{ item | replace(\".\", \"\\.\") }}).*)$"
-    replace: "\\1 {{ item }}"
+  shell: |
+    if ! grep -q "{{ item }}" /etc/kernel/cmdline; then
+      sed -i 's/$/ {{ item }}/' /etc/kernel/cmdline
+      echo "changed"
+    fi
+  register: kernel_change
+  changed_when: "'changed' in kernel_change.stdout"
   loop: "{{ kernel_params }}"
-  register: kernel_cmdline_change
-
-# 4. Reparo do TPM2 & sdbootutil
-- name: Remover inscrição de TPM antiga (Unenroll)
-  command: sdbootutil unenroll --method tpm2
-  ignore_errors: yes
-  changed_when: false
-
-- name: Reinscrever dispositivo no TPM2
-  command: sdbootutil enroll --method tpm2
-  ignore_errors: yes # Pode exigir interação manual
-  changed_when: false
+  become: true
 
 - name: Reiniciar serviço de predições do sdbootutil
   systemd:
     name: sdbootutil-update-predictions.service
     state: restarted
     enabled: yes
+  become: true

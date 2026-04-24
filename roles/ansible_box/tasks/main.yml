@@ -19,3 +19,11 @@
 - name: Iniciar o container ansible-box
   command: "distrobox enter {{ ansible_box_name }} -- true"
   changed_when: false
+
+- name: Exportar ferramentas do Ansible para o Host
+  command: "distrobox enter {{ ansible_box_name }} -- distrobox-export --bin {{ item }} --export-path ~/.local/bin"
+  loop:
+    - /usr/bin/ansible
+    - /usr/bin/ansible-playbook
+    - /usr/bin/ansible-lint
+  changed_when: false

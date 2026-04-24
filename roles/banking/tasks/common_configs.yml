@@ -21,19 +21,24 @@
 
 - name: Extrair instalador (Timeout para ignorar a GUI)
   shell: |
-    # No Leap, o ambiente de bibliotecas é mais previsível
-    timeout 5s distrobox enter {{ banking_box_name }} -- bash -c "cd /tmp && /tmp/warsaw_opensuse.run" || true
+    # Aumentamos o timeout e garantimos que o script tente rodar
+    timeout 15s distrobox enter {{ banking_box_name }} -- bash -c "cd /tmp && chmod +x warsaw_opensuse.run && ./warsaw_opensuse.run" || true
     distrobox enter {{ banking_box_name }} -- sudo umount -l /usr/local/share/fonts || true
   args:
-    chdir: "{{ lookup('env', 'HOME') }}"
+    chdir: "/tmp"
   when: not warsaw_dir.stat.exists
+
+- name: Localizar RPM extraído do Warsaw
+  shell: |
+    distrobox enter {{ banking_box_name }} -- bash -c "find /tmp -name 'warsaw*.rpm' | head -n 1"
+  register: warsaw_rpm_path
+  changed_when: false
 
 - name: Instalar Warsaw no Leap
   shell: |
     distrobox enter {{ banking_box_name }} -- sudo zypper -n in iproute2 tar wget
-    distrobox enter {{ banking_box_name }} -- bash -c "sudo zypper -n --no-gpg-checks in /tmp/warsaw_setup/warsaw*.rpm"
-  args:
-    chdir: "{{ lookup('env', 'HOME') }}"
+    distrobox enter {{ banking_box_name }} -- sudo zypper -n --no-gpg-checks in {{ warsaw_rpm_path.stdout }}
+  when: warsaw_rpm_path.stdout != ""
 
 - name: Garantir diretório de serviços de usuário no Host
   file:

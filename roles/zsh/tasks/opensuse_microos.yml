@@ -3,3 +3,4 @@
   community.general.zypper:
     name: zsh
     state: present
+  become: true

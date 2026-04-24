@@ -2,6 +2,7 @@
 ansible_box_name: "ansible-box"
 ansible_box_packages:
   - python312
+  - which
   - ansible-lint
   - ansible
   - git

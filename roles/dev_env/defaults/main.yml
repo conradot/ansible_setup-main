@@ -12,5 +12,6 @@ dev_packages:
   - make
   - tar
   - wget
+  - which
   - gawk
   - zstd

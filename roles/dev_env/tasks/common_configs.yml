@@ -85,6 +85,10 @@
     distrobox enter {{ dev_box_name }} -- distrobox-export --bin /usr/local/bin/ollama --export-path ~/.local/bin
   register: ollama_export
 
+- name: Garantir que o comando which está instalado no Dev Workspace
+  command: "distrobox enter {{ dev_box_name }} -- sudo zypper --non-interactive install which"
+  changed_when: false
+
 - name: Instalar o Open Code
   shell: |
     distrobox enter {{ dev_box_name }} -- bash -c "curl -fsSL https://opencode.ai/install | bash"
