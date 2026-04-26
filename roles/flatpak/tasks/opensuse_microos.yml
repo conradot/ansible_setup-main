@@ -1,1 +1,4 @@
 ---
+- name: Configurar método do Flatpak para Kalpa/MicroOS (Usuário)
+  set_fact:
+    flatpak_method: "user"

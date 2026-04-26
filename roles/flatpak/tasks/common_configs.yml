@@ -1,17 +1,16 @@
-- name: 1. Garantir que o repositório Flathub está presente (User)
+- name: 1. Garantir que o repositório Flathub está presente
   flatpak_remote:
     name: flathub
     state: present
-    method: user
+    method: "{{ flatpak_method | default('user') }}"
     flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
 
 - name: 2. Instalar Apps via Flatpak
   flatpak:
     name: "{{ item }}"
     state: present
-    method: user
+    method: "{{ flatpak_method | default('user') }}"
   loop: "{{ apps_flatpaks }}"
-
 - name: 3. Verificar se o Flatpaks estão instalados (Informativo)
   debug:
     msg: "Apps Flatpaks instalados com sucesso!"
