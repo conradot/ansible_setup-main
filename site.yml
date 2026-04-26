@@ -27,6 +27,9 @@
     - name: 📢 NOTIFICAÇÕES FINAIS
       debug:
         msg:
+          - "=========================================================="        
+          - "Para testar o warsaw:"
+          - "https://127.0.0.1:30900/"
           - "=========================================================="
           - "⚠️  RECOMENDAÇÕES PARA O HOST (TAG 'host'):"
           - "1. TPM: sudo sdbootutil unenroll --method tpm2"

@@ -56,10 +56,3 @@
   changed_when: "'changed' in kernel_change.stdout"
   loop: "{{ kernel_params }}"
   become: true
-
-- name: Reiniciar serviço de predições do sdbootutil
-  systemd:
-    name: sdbootutil-update-predictions.service
-    state: restarted
-    enabled: yes
-  become: true
