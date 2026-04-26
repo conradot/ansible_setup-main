@@ -1,13 +1,68 @@
 #!/bin/bash
-distrobox create -n dev_fedora --image fedora:latest
-distrobox enter dev_fedora
-python3 -m venv .venv
+set -e
+
+# Resposta à sua pergunta: Scripts Bash não herdam variáveis do Ansible automaticamente.
+# Porém, podemos extrair a variável lendo o arquivo YAML do Ansible com grep/awk!
+DEV_BOX_NAME=$(grep -E '^dev_box_name:' roles/dev_env/defaults/main.yml 2>/dev/null | awk '{print $2}' | tr -d '"' | tr -d "'")
+DEV_BOX_NAME=${DEV_BOX_NAME:-dev_fedora} # Caso não encontre, usa dev_fedora
+
+# Avalia se já estamos dentro do Distrobox (container)
+if [ ! -f "/run/.containerenv" ]; then
+    echo "Executando no Host..."
+    
+    # Avalia se o ambiente de dev já existe
+    if ! distrobox list | awk '{print $3}' | grep -qw "$DEV_BOX_NAME"; then
+        echo "Ambiente '$DEV_BOX_NAME' não encontrado. Criando..."
+        distrobox create -n "$DEV_BOX_NAME" --image fedora:latest
+    else
+        echo "Ambiente '$DEV_BOX_NAME' já existe."
+    fi
+
+    echo "Entrando no ambiente para configurar o Ansible..."
+    # Re-executa este próprio script por dentro do Distrobox
+    distrobox enter "$DEV_BOX_NAME" -- bash "$0" "$@"
+    
+    # Ao terminar a execução de dentro do container, imprime a mensagem final no host
+    echo ""
+    echo "=========================================================="
+    echo "✅ Execução em modo de checagem (--check) concluída!"
+    echo "Para executar o playbook de forma real, rode:"
+    echo "distrobox enter $DEV_BOX_NAME -- bash -c 'source .venv/bin/activate && ansible-playbook site.yml'"
+    echo "=========================================================="
+    
+    exit 0
+fi
+
+# =========================================================================
+# TUDO ABAIXO DESTA LINHA SÓ EXECUTA DENTRO DO DISTROBOX
+# =========================================================================
+echo "Iniciando configuração de dentro do ambiente '$DEV_BOX_NAME'..."
+
+if [ ! -d ".venv" ]; then
+    python3 -m venv .venv
+fi
 source .venv/bin/activate
+pip install --upgrade pip
 pip install ansible
-# Autoriza a própria chave a conectar no localhost
+
+# Configura as chaves SSH para conectar de volta no host
+mkdir -p ~/.ssh
+if [ ! -f ~/.ssh/id_ed25519 ]; then
+    echo "Gerando chave SSH..."
+    ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
+fi
+
 cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
-# Conecta uma vez para aceitar a "fingerprint" (digite "yes")
-ssh localhost echo "Conexão SSH bem-sucedida!"
-ansible-galaxy install -r requirements.yml
+
+# Conecta uma vez para aceitar a "fingerprint" automaticamente
+ssh -o StrictHostKeyChecking=accept-new localhost echo "Conexão SSH bem-sucedida!"
+
+# Instala os requisitos do Galaxy
+if [ -f "requirements.yml" ]; then
+    ansible-galaxy install -r requirements.yml
+fi
+
+# Executa o playbook em modo de checagem
+echo "Testando o playbook (--check)..."
 ansible-playbook site.yml --check

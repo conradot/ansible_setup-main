@@ -23,6 +23,12 @@
   # Isso configura o git dentro do container para você já começar a usar
   shell: |
     distrobox enter {{ dev_box_name }} -- git config --global core.editor "code --wait"
+    {% if git_user_name != '' %}
+    distrobox enter {{ dev_box_name }} -- git config --global user.name "{{ git_user_name }}"
+    {% endif %}
+    {% if git_user_email != '' %}
+    distrobox enter {{ dev_box_name }} -- git config --global user.email "{{ git_user_email }}"
+    {% endif %}
   ignore_errors: true
   register: git_install
 
