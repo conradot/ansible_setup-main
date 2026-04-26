@@ -4,6 +4,7 @@
     state: present
     method: "{{ flatpak_method | default('user') }}"
     flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
+  become: "{{ flatpak_method == 'system' }}"
 
 - name: 2. Instalar Apps via Flatpak
   flatpak:
@@ -11,6 +12,7 @@
     state: present
     method: "{{ flatpak_method | default('user') }}"
   loop: "{{ apps_flatpaks }}"
+  become: "{{ flatpak_method == 'system' }}"
 - name: 3. Verificar se o Flatpaks estão instalados (Informativo)
   debug:
     msg: "Apps Flatpaks instalados com sucesso!"
