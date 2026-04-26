@@ -1,16 +1,23 @@
 ---
-- name: Criar rede interna para IA
-  containers.podman.podman_network:
-    name: "{{ ai_network_name }}"
-    state: present
+- name: Garantir diretórios de dados da IA no host
+  file:
+    path: "{{ ai_data_dir }}/{{ item.name }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ ia_stack }}"
 
-- name: Subir stack de containers IA
+- name: Criar Pod para a stack de IA
+  containers.podman.podman_pod:
+    name: "{{ ai_pod_name }}"
+    state: created
+    ports: "{{ ai_pod_ports }}"
+
+- name: Subir stack de containers IA no Pod
   containers.podman.podman_container:
     name: "{{ item.name }}"
     image: "{{ item.image }}"
-    network: "{{ ai_network_name }}"
+    pod: "{{ ai_pod_name }}"
     restart_policy: always
-    ports: "{{ item.ports | default(omit) }}"
     volumes: "{{ item.volumes | default(omit) }}"
     env: "{{ item.env | default(omit) }}"
     state: started

@@ -1,0 +1,13 @@
+#!/bin/bash
+distrobox create -n dev_fedora --image fedora:latest
+distrobox enter dev_fedora
+python3 -m venv .venv
+source .venv/bin/activate
+pip install ansible
+# Autoriza a própria chave a conectar no localhost
+cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+# Conecta uma vez para aceitar a "fingerprint" (digite "yes")
+ssh localhost echo "Conexão SSH bem-sucedida!"
+ansible-galaxy install -r requirements.yml
+ansible-playbook site.yml --check

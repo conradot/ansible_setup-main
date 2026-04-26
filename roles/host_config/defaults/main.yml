@@ -1,5 +1,2 @@
 ---
 host_user: "conradot"
-boot_timeout: 1
-kernel_params:
-  - "video=1920x1080@60"

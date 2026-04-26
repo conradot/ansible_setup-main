@@ -36,26 +36,20 @@
 - name: Adicionar Repositórios (VS Code)
   shell: |
     distrobox enter {{ dev_box_name }} -- sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
-    distrobox enter {{ dev_box_name }} -- sudo zypper addrepo https://packages.microsoft.com/yumrepos/vscode vscode
+    distrobox enter {{ dev_box_name }} -- sudo sh -c 'echo -e "[code]\nname=Visual Studio Code\nbaseurl=https://packages.microsoft.com/yumrepos/vscode\nenabled=1\ngpgcheck=1\ngpgkey=https://packages.microsoft.com/keys/microsoft.asc" > /etc/yum.repos.d/vscode.repo'
   register: repo_result
-  # Falha apenas se o erro não for sobre o repositório já existir
-  failed_when: "repo_result.rc != 0 and 'already exists' not in repo_result.stderr"
-  # Só marca como "changed" se o repositório for de fato adicionado agora
+  failed_when: "repo_result.rc != 0"
   changed_when: "repo_result.rc == 0"
 
 - name: Instalar Code no ambiente de Dev
-  # Usando zypper por ser a ferramenta nativa do Tumbleweed no seu container
-  command: "distrobox enter {{ dev_box_name }} -- sudo zypper --non-interactive install code"
+  command: "distrobox enter {{ dev_box_name }} -- sudo dnf install -y code"
   register: code_install
-  changed_when: "'Installing' in code_install.stdout"
-  failed_when: 
-    - code_install.rc != 0 
-    - "'already installed' not in code_install.stderr"  
+  changed_when: "'Installing' in code_install.stdout"  
 
 
 - name: Configurar Repositório do Antigravity
   shell: |
-    distrobox enter {{ dev_box_name }} -- sudo tee /etc/zypp/repos.d/antigravity.repo << EOL
+    distrobox enter {{ dev_box_name }} -- sudo tee /etc/yum.repos.d/antigravity.repo << EOL
     [antigravity-rpm]
     name=Antigravity RPM Repository
     baseurl=https://us-central1-yum.pkg.dev/projects/antigravity-auto-updater-dev/antigravity-rpm
@@ -66,13 +60,9 @@
   changed_when: "'antigravity-rpm' in antigravity_repo.stdout"
 
 - name: Instalar Antigravity no ambiente de Dev
-  # Usando zypper por ser a ferramenta nativa do Tumbleweed no seu container
-  command: "distrobox enter {{ dev_box_name }} -- sudo zypper --non-interactive install antigravity"
+  command: "distrobox enter {{ dev_box_name }} -- sudo dnf install -y antigravity"
   register: antigravity_install
-  changed_when: "'Installing' in antigravity_install.stdout"
-  failed_when: 
-    - antigravity_install.rc != 0 
-    - "'already installed' not in antigravity_install.stderr"  
+  changed_when: "'Installing' in antigravity_install.stdout"  
 
 
 - name: Instalar Ollama Client
@@ -86,7 +76,7 @@
   register: ollama_export
 
 - name: Garantir que o comando which está instalado no Dev Workspace
-  command: "distrobox enter {{ dev_box_name }} -- sudo zypper --non-interactive install which"
+  command: "distrobox enter {{ dev_box_name }} -- sudo dnf install -y which"
   changed_when: false
 
 - name: Instalar o Open Code
@@ -109,16 +99,16 @@
     - code
     - antigravity
 
-- name: Garantir PATH no arquivo de configuração do Shell
-  lineinfile:
-    # Alterado para .zshrc para alinhar com seu shell padrão configurado
-    path: "{{ lookup('env', 'HOME') }}/.zshrc"
-    line: 'export PATH="$HOME/.local/bin:$PATH"'
-    state: present
-    create: yes
+#- name: Garantir PATH no arquivo de configuração do Shell
+#  lineinfile:
+#    # Alterado para .zshrc para alinhar com seu shell padrão configurado
+#    path: "{{ lookup('env', 'HOME') }}/.zshrc"
+#    line: 'export PATH="$HOME/.local/bin:$PATH"'
+#    state: present
+#    create: yes
 
-- name: Garantir PATH no .bashrc
-  lineinfile:
-        path: "{{ lookup('env', 'HOME') }}/.bashrc"
-        line: 'export PATH="$HOME/.local/bin:$PATH"'
-        state: present
+#- name: Garantir PATH no .bashrc
+#  lineinfile:
+#        path: "{{ lookup('env', 'HOME') }}/.bashrc"
+#        line: 'export PATH="$HOME/.local/bin:$PATH"'
+#        state: present

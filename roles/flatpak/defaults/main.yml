@@ -3,4 +3,9 @@
 apps_flatpaks:
   - com.google.Chrome
   - com.spotify.Client
-  - io.github.shiftey.Desktop
+  - org.gimp.gimp
+  - org.kde.isoimagewriter.desktop
+  - org.kde.partitionmanager.desktop
+  - org.kde.ark.desktop
+  - org.kde.okular.desktop
+  - org.kde.kate.desktop

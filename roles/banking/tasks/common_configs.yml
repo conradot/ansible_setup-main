@@ -38,7 +38,7 @@
 - name: Instalar Warsaw no Leap
   shell: |
     distrobox enter {{ banking_box_name }} -- sudo zypper -n in iproute2 tar wget
-    distrobox enter {{ banking_box_name }} -- sudo zypper -n --no-gpg-checks in {{ warsaw_rpm_path.stdout }}
+    distrobox enter {{ banking_box_name }} -- sudo zypper -n --no-gpg-checks in --allow-unsigned-rpm {{ warsaw_rpm_path.stdout }}
   when: warsaw_rpm_path.stdout != ""
 
 - name: Garantir diretório de serviços de usuário no Host
@@ -64,15 +64,13 @@
 
       [Service]
       # Necessário para que o serviço de sistema encontre o container do seu usuário
-      User={{ ansible_user_id }}
+      User={{ ansible_facts['user_id'] }}
       Delegate=yes
-      Type=forking
+      Type=oneshot
+      RemainAfterExit=yes
 
       # O Distrobox entra e executa o core que se torna um daemon
       ExecStart=/usr/bin/distrobox enter {{ banking_box_name }} -- sudo /usr/local/bin/warsaw/core
-
-      Restart=always
-      RestartSec=15
 
       [Install]
       WantedBy=multi-user.target

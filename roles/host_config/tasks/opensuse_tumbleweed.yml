@@ -1,10 +1,13 @@
 ---
 # 1. Configuração do Brilho do Monitor (I2C)
-- name: Instalar pacotes para controle de brilho e utilitários
-  command: transactional-update --non-interactive pkg install ddcutil i2c-tools which zsh
+- name: Instalar pacotes para controle de brilho e utilitários via zypper
+  zypper:
+    name:
+      - ddcutil
+      - i2c-tools
+      - zsh
+    state: present
   become: true
-  register: i2c_pkg_install
-  changed_when: "'Nothing to do' not in i2c_pkg_install.stdout"
 
 - name: Criar grupo de sistema i2c
   group:
@@ -37,3 +40,4 @@
     group: root
     mode: "0644"
   become: true
+

@@ -1,5 +1,5 @@
 ---
-dev_box_name: "dev-workspace"
+dev_box_name: "dev-fedora"
 # Configurações do Fedora Dev (RPMs)
 # Adicionamos 'git' aqui para facilitar a gestão
 dev_packages:

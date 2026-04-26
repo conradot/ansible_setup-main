@@ -1,6 +1,6 @@
 # 🚀 Kalpa Automation Station
 
-Este projeto automatiza a configuração de uma estação de trabalho completa no **openSUSE Kalpa** (distribuição imutável). Ele utiliza uma arquitetura baseada em **Podman**, **Distrobox**, **Flatpak** e **Systemd User Services** para manter o sistema base limpo.
+Este projeto automatiza a configuração de uma estação de trabalho completa no **openSUSE Kalpa / Tumbleweed**. Ele utiliza uma arquitetura baseada em **Podman**, **Distrobox**, **Flatpak** e **Systemd User Services** para manter o sistema base limpo.
 
 ---
 
@@ -8,13 +8,12 @@ Este projeto automatiza a configuração de uma estação de trabalho completa n
 
 A configuração é dividida em camadas para garantir isolamento e performance:
 
-*   **Host (Nativo):** Configurações de hardware (I2C/Brilho), Bootloader, Kernel e SSD/TPM.
+*   **Host (Nativo):** Instalação de pacotes base (zsh, git) e configuração de hardware (I2C/Brilho do monitor).
 *   **Infrastructure (Podman):** Containers de IA (Ollama, Qdrant, Open WebUI).
 *   **Workspaces (Distrobox):**
-    *   `ansible-box`: Container dedicado para rodar este projeto e outras automações.
-    *   `dev-workspace`: Ambiente de desenvolvimento (VS Code, Git, Compiladores).
+    *   `dev_fedora`: Ambiente de desenvolvimento (VS Code, Git, Compiladores) e container principal utilizado para rodar este próprio playbook.
     *   `banking-workspace`: Ambiente isolado para o Warsaw/Itaú.
-*   **Desktop (Flatpak):** Aplicações GUI (Steam, Chrome, Spotify).
+*   **Desktop (Flatpak):** Aplicações GUI (Steam, Chrome, Spotify, KDE Apps).
 
 ---
 
@@ -22,16 +21,16 @@ A configuração é dividida em camadas para garantir isolamento e performance:
 
 ```text
 .
+├── first-run.ssh          # Script de Bootstrap para criar o dev_fedora e rodar o playbook
 ├── roles/
-│   ├── host_config/       # Hardware, Bootloader, Kernel, TPM2
-│   ├── ansible_box/       # Container Distrobox para rodar o Ansible
+│   ├── host_config/       # Pacotes Base (Zsh, Git) e Hardware (I2C)
 │   ├── ia_containers/     # Stack de IA (Podman)
 │   ├── dev_env/           # Workspace de Desenvolvimento (Distrobox Assemble)
 │   ├── banking/           # Workspace Bancário + Warsaw (Distrobox Assemble)
 │   ├── gaming/            # Steam + Flatpak
 │   ├── flatpak/           # Apps (Chrome, Spotify, etc.)
 │   ├── rclone/            # Backup e Sincronismo (Gdrive)
-│   └── zsh/               # Configuração de Shell
+│   └── zsh/               # Configuração do ambiente de usuário Zsh
 ├── site.yml               # Playbook mestre
 └── inventory.yml          # Inventário (Conexão SSH Local)
 ```
@@ -40,34 +39,25 @@ A configuração é dividida em camadas para garantir isolamento e performance:
 
 ## 🛠️ Como Iniciar (Bootstrap)
 
-Existem duas formas de rodar este projeto pela primeira vez:
-
-### Opção A: Direto no Host (via Venv)
-Ideal para a primeira execução, quando você ainda não tem o `ansible-box`.
+Para facilitar a primeira execução do projeto, disponibilizamos um script de automação (`first-run.ssh`). Ele cuida de criar seu contêiner de desenvolvimento (`dev_fedora`) e executar o Ansible por lá.
 
 ```bash
-# 1. Criar e ativar venv
-python3 -m venv .venv
-source .venv/bin/activate
+# 1. Certifique-se que o serviço SSH do Host está ativo:
+sudo systemctl enable --now sshd
 
-# 2. Instalar Ansible e coleções
-pip install ansible
-ansible-galaxy collection install containers.podman community.general ansible.posix
+# 2. Torne o script executável
+chmod +x first-run.ssh
 
-# 3. Rodar o setup do host e do ansible-box
-ansible-playbook site.yml --tags host,ansible
+# 3. Execute o bootstrap
+./first-run.ssh
 ```
 
-### Opção B: Via Ansible-Box (Recomendado)
-Após a primeira execução da Opção A, você terá um container dedicado.
-
-```bash
-# 1. Entrar no container
-distrobox enter ansible-box
-
-# 2. Rodar o playbook (o Ansible já está instalado lá)
-ansible-playbook site.yml
-```
+**O que o `first-run.ssh` faz?**
+1. Cria e entra no contêiner `dev_fedora` usando Distrobox.
+2. Cria um ambiente virtual Python (`.venv`) e instala o Ansible.
+3. Autoriza sua chave SSH local para conectar ao host via `127.0.0.1` sem senha (necessário para que o Ansible configure o openSUSE de fora do contêiner).
+4. Baixa e instala as dependências/coleções do Ansible (`requirements.yml`).
+5. Executa o playbook mestre (`site.yml`).
 
 ---
 
@@ -77,40 +67,26 @@ Você pode rodar partes específicas do setup usando tags:
 
 | Tag | Descrição |
 | :--- | :--- |
-| `host` | Configurações de Hardware, Boot, Kernel e TPM2 |
-| `ansible` | Cria/Atualiza o container `ansible-box` |
+| `host` | Pacotes base do sistema e I2C (Monitor) |
 | `ia` | Sobe a stack de IA (Ollama, etc) |
 | `dev` | Configura o ambiente de desenvolvimento |
 | `bank` | Configura o ambiente bancário e Warsaw |
 | `flatpak`| Instala aplicações Desktop |
 | `rclone` | Configura backups e sincronismo |
+| `zsh` | Instala plugins e o .zshrc do usuário |
 
 ---
 
 ## 💡 Notas Importantes
 
 ### SSH Nativa
-O projeto utiliza `ansible_connection: ssh` para se comunicar com o `localhost`. Para que isso funcione sem pedir senha a cada comando, configure seu acesso SSH local:
-
-1.  **Gerar Chave (caso não tenha):**
-    ```bash
-    ssh-keygen -t ed25519 -C "seu-email@exemplo.com"
-    ```
-2.  **Autorizar Chave e Habilitar Serviço:**
-    ```bash
-    # Adicionar sua chave à lista de autorizados
-    cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
-    chmod 600 ~/.ssh/authorized_keys
-
-    # Ativar o serviço SSH no Host
-    sudo systemctl enable --now sshd
-    ```
+O projeto utiliza `ansible_connection: ssh` para se comunicar com o host via `127.0.0.1`. O script `first-run.ssh` já configura o acesso sem senha de forma automatizada. 
 
 ### Distrobox Assemble
-As roles de workspace (`dev_env`, `ansible_box`, `banking`) utilizam o `distrobox assemble`. Isso significa que as configurações são declarativas e gerenciadas via arquivos `.ini` em `~/.config/distrobox/`.
+As roles de workspace (`dev_env`, `banking`) utilizam o `distrobox assemble`. Isso significa que as configurações são declarativas e gerenciadas via arquivos `.ini` em `~/.config/distrobox/`.
 
-### Host Config & Reboot
-Alterações em `host_config` (como parâmetros do kernel e pacotes de hardware) só entram em vigor após um **reboot**, pois o Kalpa utiliza o modelo de atualização transacional.
+### Host Config & Reboot (No Kalpa / MicroOS)
+Se você estiver rodando o sistema imutável openSUSE Kalpa (ou MicroOS), lembre-se que alterações feitas pela role `host_config` (como a instalação do Git ou Zsh via `transactional-update`) só entram em vigor após um **reboot**. Se estiver no openSUSE Tumbleweed, as mudanças são imediatas.
 
 ---
 **Dica:** Sempre mantenha este repositório sincronizado. Ele é o "cérebro" da sua máquina! 🧠⚡

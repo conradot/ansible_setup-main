@@ -4,4 +4,3 @@ all:
     localhost:
       ansible_connection: ssh
       ansible_host: 127.0.0.1
-      # Configure aqui o seu usuário caso necessário, ex: ansible_user: conradot

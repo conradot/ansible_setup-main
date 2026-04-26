@@ -4,16 +4,14 @@
   gather_facts: true
 
   roles:
-    - role: ansible_box
-      tags: [ never, ansible ]
     - role: host_config
       tags: [ never, setup, host ]
-    - role: zsh
-      tags: [ zsh, host ]
     - role: ia_containers
       tags: [ ia ]
     - role: dev_env
       tags: [ dev ]
+    - role: zsh
+      tags: [ zsh, host ]
     - role: banking
       tags: [ bank ]
     - role: gaming
