@@ -18,7 +18,7 @@
 
 - name: Adicionar usuário ao grupo i2c
   user:
-    name: "{{ host_user }}"
+    name: "{{ ansible_user_id }}"
     groups: i2c
     append: yes
   become: true

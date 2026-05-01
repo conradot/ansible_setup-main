@@ -1,2 +1,3 @@
 ---
-host_user: "conradot"
+# Não é mais necessário definir host_user
+# A role usa automaticamente o usuário que executa o playbook

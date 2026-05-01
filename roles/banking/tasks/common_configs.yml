@@ -3,43 +3,168 @@
   args:
     creates: "~/.local/share/containers/storage/volumes/{{ banking_box_name }}"
 
-- name: Verificar se a pasta de extração do Warsaw já existe
-  stat:
-    path: "{{ lookup('env', 'HOME') }}/warsaw_setup"
-  register: warsaw_dir
+- name: Verificar se Warsaw já está instalado no container
+  shell: |
+    distrobox enter {{ banking_box_name }} -- bash -c "rpm -qa | grep -i warsaw || echo 'not_installed'"
+  register: warsaw_installed_check
+  changed_when: false
+  failed_when: false
 
-- name: Instalar dependências gráficas no Leap
-  command: "distrobox enter {{ banking_box_name }} -- sudo zypper -n in
-    libXcursor1 libXrender1 libXext6 libXfixes3 libXft2"
-  when: not warsaw_dir.stat.exists
+- name: Instalar dependências gráficas e ferramentas no Leap
+  command: "distrobox enter {{ banking_box_name }} -- sudo zypper -n in libXcursor1 libXrender1 libXext6 libXfixes3 libXft2 iproute2 tar wget"
+  when: warsaw_installed_check.stdout == 'not_installed'
 
 - name: Baixar instalador do Warsaw
   get_url:
     url: "{{ warsaw_url }}"
     dest: /tmp/warsaw_opensuse.run
     mode: "0755"
-  when: not warsaw_dir.stat.exists
+  when: warsaw_installed_check.stdout == 'not_installed'
 
-- name: Extrair instalador (Timeout para ignorar a GUI)
+- name: Criar diretório de extração do Warsaw
+  file:
+    path: /tmp/warsaw_extract
+    state: directory
+    mode: "0755"
+  when: warsaw_installed_check.stdout == 'not_installed'
+
+- name: Extrair instalador do Warsaw (modo não-interativo)
   shell: |
-    # Aumentamos o timeout e garantimos que o script tente rodar
-    timeout 15s distrobox enter {{ banking_box_name }} -- bash -c "cd /tmp && chmod +x warsaw_opensuse.run && ./warsaw_opensuse.run" || true
-    distrobox enter {{ banking_box_name }} -- sudo umount -l /usr/local/share/fonts || true
+    distrobox enter {{ banking_box_name }} -- bash -c "
+      # Desabilitar qualquer tentativa de GUI
+      export DISPLAY=
+      export DEBIAN_FRONTEND=noninteractive
+      
+      cd /tmp
+      chmod +x warsaw_opensuse.run
+      
+      # Extrair com --target para especificar diretório de saída
+      # O --noexec evita execução automática após extração
+      # Redirecionar stderr para stdout para capturar todos os logs
+      ./warsaw_opensuse.run --target /tmp/warsaw_extract --noexec 2>&1 | tee /tmp/warsaw_extract.log
+      
+      # Verificar se a extração foi bem-sucedida
+      if [ -d /tmp/warsaw_extract ]; then
+        echo 'Extração concluída com sucesso'
+        ls -la /tmp/warsaw_extract/
+      else
+        echo 'ERRO: Diretório de extração não foi criado'
+        exit 1
+      fi
+    "
   args:
     chdir: "/tmp"
-  when: not warsaw_dir.stat.exists
+  register: warsaw_extract_result
+  when: warsaw_installed_check.stdout == 'not_installed'
+  failed_when: "'ERRO:' in warsaw_extract_result.stdout"
 
-- name: Localizar RPM extraído do Warsaw
+- name: Exibir log de extração do Warsaw
+  debug:
+    var: warsaw_extract_result.stdout_lines
+  when:
+    - warsaw_installed_check.stdout == 'not_installed'
+    - warsaw_extract_result is defined
+
+- name: Localizar RPM extraído do Warsaw (busca em múltiplos locais)
   shell: |
-    distrobox enter {{ banking_box_name }} -- bash -c "find /tmp -name 'warsaw*.rpm' | head -n 1"
+    distrobox enter {{ banking_box_name }} -- bash -c "
+      # Buscar em ordem de prioridade
+      if [ -f /tmp/warsaw_extract/*.rpm ]; then
+        find /tmp/warsaw_extract -name 'warsaw*.rpm' -type f | head -n 1
+      elif [ -f /tmp/*.rpm ]; then
+        find /tmp -maxdepth 1 -name 'warsaw*.rpm' -type f | head -n 1
+      else
+        find /tmp -name 'warsaw*.rpm' -type f 2>/dev/null | head -n 1
+      fi
+    "
   register: warsaw_rpm_path
   changed_when: false
+  when: warsaw_installed_check.stdout == 'not_installed'
 
-- name: Instalar Warsaw no Leap
+- name: Verificar se o RPM foi encontrado
+  fail:
+    msg: |
+      ERRO: RPM do Warsaw não foi encontrado após extração!
+      Verifique os logs acima para mais detalhes.
+      Possíveis causas:
+      - O instalador warsaw_opensuse.run não extraiu corretamente
+      - A versão do instalador mudou e não gera mais RPM
+      - Permissões insuficientes no diretório /tmp
+  when:
+    - warsaw_installed_check.stdout == 'not_installed'
+    - warsaw_rpm_path.stdout == ""
+
+- name: Exibir caminho do RPM encontrado
+  debug:
+    msg: "RPM do Warsaw encontrado em: {{ warsaw_rpm_path.stdout }}"
+  when:
+    - warsaw_installed_check.stdout == 'not_installed'
+    - warsaw_rpm_path.stdout != ""
+
+- name: Instalar Warsaw RPM no Leap
   shell: |
-    distrobox enter {{ banking_box_name }} -- sudo zypper -n in iproute2 tar wget
     distrobox enter {{ banking_box_name }} -- sudo zypper -n --no-gpg-checks in --allow-unsigned-rpm {{ warsaw_rpm_path.stdout }}
-  when: warsaw_rpm_path.stdout != ""
+  register: warsaw_install_result
+  when:
+    - warsaw_installed_check.stdout == 'not_installed'
+    - warsaw_rpm_path.stdout != ""
+  failed_when: warsaw_install_result.rc != 0
+
+- name: Exibir resultado da instalação do Warsaw
+  debug:
+    var: warsaw_install_result.stdout_lines
+  when:
+    - warsaw_installed_check.stdout == 'not_installed'
+    - warsaw_install_result is defined
+
+- name: Verificar instalação do Warsaw e localizar binário core
+  shell: |
+    distrobox enter {{ banking_box_name }} -- bash -c "
+      # Verificar se o Warsaw foi instalado
+      if ! rpm -qa | grep -qi warsaw; then
+        echo 'ERROR: Warsaw RPM não está instalado'
+        exit 1
+      fi
+      
+      # Buscar o binário core em locais comuns
+      if [ -f /usr/local/bin/warsaw/core ]; then
+        echo '/usr/local/bin/warsaw/core'
+      elif [ -f /usr/bin/warsaw/core ]; then
+        echo '/usr/bin/warsaw/core'
+      elif [ -f /opt/warsaw/core ]; then
+        echo '/opt/warsaw/core'
+      else
+        # Busca genérica como último recurso
+        CORE_PATH=\$(find /usr /opt -name 'core' -path '*/warsaw/*' -type f 2>/dev/null | head -n 1)
+        if [ -n \"\$CORE_PATH\" ]; then
+          echo \"\$CORE_PATH\"
+        else
+          echo 'ERROR: Binário core do Warsaw não encontrado'
+          exit 1
+        fi
+      fi
+    "
+  register: warsaw_core_path
+  changed_when: false
+  failed_when: "'ERROR:' in warsaw_core_path.stdout"
+
+- name: Exibir caminho do binário Warsaw core
+  debug:
+    msg: "Binário Warsaw core encontrado em: {{ warsaw_core_path.stdout }}"
+
+- name: Verificar se o binário core é executável
+  shell: |
+    distrobox enter {{ banking_box_name }} -- bash -c "
+      if [ -x {{ warsaw_core_path.stdout }} ]; then
+        echo 'Binário é executável'
+      else
+        echo 'ERROR: Binário não é executável'
+        exit 1
+      fi
+    "
+  register: warsaw_core_executable
+  changed_when: false
+  failed_when: "'ERROR:' in warsaw_core_executable.stdout"
 
 - name: Garantir diretório de serviços de usuário no Host
   file:
@@ -70,16 +195,57 @@
       RemainAfterExit=yes
 
       # O Distrobox entra e executa o core que se torna um daemon
-      ExecStart=/usr/bin/distrobox enter {{ banking_box_name }} -- sudo /usr/local/bin/warsaw/core
+      # Path detectado dinamicamente durante a instalação: {{ warsaw_core_path.stdout }}
+      ExecStart=/usr/bin/distrobox enter {{ banking_box_name }} -- sudo {{ warsaw_core_path.stdout }}
 
       [Install]
       WantedBy=multi-user.target
 
-- name: Recarregar Daemon e Ativar Serviço do Warsaw
+- name: Recarregar Daemon do Systemd
+  become: true
+  systemd:
+    daemon_reload: yes
+
+- name: Ativar Serviço do Warsaw
+  become: true
+  systemd:
+    name: warsaw-container.service
+    scope: system
+    enabled: yes
+
+- name: Iniciar Serviço do Warsaw
   become: true
   systemd:
     name: warsaw-container.service
     scope: system
     state: started
-    enabled: yes
-    daemon_reload: yes
+  register: warsaw_service_start
+  failed_when: false
+
+- name: Verificar status do serviço Warsaw
+  become: true
+  systemd:
+    name: warsaw-container.service
+    scope: system
+  register: warsaw_service_status
+
+- name: Exibir status do serviço Warsaw
+  debug:
+    msg: |
+      Status do serviço Warsaw:
+      - Estado: {{ warsaw_service_status.status.ActiveState }}
+      - Sub-estado: {{ warsaw_service_status.status.SubState }}
+      {% if warsaw_service_status.status.ActiveState != 'active' %}
+      ATENÇÃO: O serviço não está ativo. Verifique os logs com:
+      sudo journalctl -u warsaw-container.service -n 50
+      {% endif %}
+
+- name: Limpar arquivos temporários do Warsaw
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/warsaw_opensuse.run
+    - /tmp/warsaw_extract
+    - /tmp/warsaw_extract.log
+  when: warsaw_service_status.status.ActiveState == 'active'
