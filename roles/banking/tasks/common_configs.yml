@@ -191,12 +191,21 @@
       # Necessário para que o serviço de sistema encontre o container do seu usuário
       User={{ ansible_facts['user_id'] }}
       Delegate=yes
+      # Type=oneshot com RemainAfterExit garante que o systemd
+      # considere o serviço ativo mesmo após o comando inicial fechar.
       Type=oneshot
       RemainAfterExit=yes
 
       # O Distrobox entra e executa o core que se torna um daemon
       # Path detectado dinamicamente durante a instalação: {{ warsaw_core_path.stdout }}
       ExecStart=/usr/bin/distrobox enter {{ banking_box_name }} -- sudo {{ warsaw_core_path.stdout }}
+      
+      # O Warsaw costuma demorar uns segundos para subir o socket 30900
+      ExecStartPost=/usr/bin/sleep 5
+      
+      # Reiniciar apenas em caso de falha
+      Restart=on-failure
+      RestartSec=10
 
       [Install]
       WantedBy=multi-user.target

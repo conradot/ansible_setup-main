@@ -120,9 +120,16 @@ Wants=network-online.target
 [Service]
 User=<seu-usuario>
 Delegate=yes
+# Type=oneshot com RemainAfterExit garante que o systemd
+# considere o serviço ativo mesmo após o comando inicial fechar.
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/bin/distrobox enter banking-workspace -- sudo <path-detectado>/core
+# O Warsaw costuma demorar uns segundos para subir o socket 30900
+ExecStartPost=/usr/bin/sleep 5
+# Reiniciar apenas em caso de falha
+Restart=on-failure
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
@@ -132,7 +139,12 @@ WantedBy=multi-user.target
 - Path do binário `core` é **detectado dinamicamente**
 - Serviço roda como seu usuário (não como root)
 - Inicia automaticamente no boot
-- Persiste após execução (`RemainAfterExit=yes`)
+- **Type=oneshot + RemainAfterExit=yes**: Evita loop de reinicialização infinita
+  - O Warsaw daemoniza (roda em segundo plano) após ser iniciado
+  - O systemd considera o serviço ativo mesmo após o comando inicial terminar
+  - Sem essa configuração, o systemd tentaria reiniciar o serviço continuamente
+- **ExecStartPost com sleep 5**: Aguarda o socket 30900 estar pronto
+- **Restart=on-failure**: Reinicia apenas se houver falha real
 
 ### 4. Verificações e Logs
 
@@ -187,6 +199,52 @@ https://127.0.0.1:30900/
 Você deve ver a interface web do Warsaw Banking Security.
 
 ## Troubleshooting
+
+### Problema: Loop de Reinicialização Infinita
+
+**Sintoma:**
+```bash
+$ sudo systemctl status warsaw-container.service
+● warsaw-container.service - Servico Warsaw Banking no Distrobox
+   Active: activating (auto-restart) (Result: exit-code)
+   # Contador de reinícios aumentando continuamente
+```
+
+**Causa:**
+O Warsaw daemoniza (roda em segundo plano) após ser iniciado. Quando o comando `distrobox enter` termina com sucesso (exit code 0), o systemd interpreta isso como "o serviço morreu" e tenta reiniciá-lo, criando um loop infinito.
+
+**Solução:**
+A configuração atual já resolve este problema usando:
+- `Type=oneshot`: Indica que o comando é executado uma vez
+- `RemainAfterExit=yes`: Mantém o serviço como "active" mesmo após o comando terminar
+- `Restart=on-failure`: Reinicia apenas em caso de falha real
+
+Se você ainda estiver enfrentando este problema com uma versão antiga da role:
+
+```bash
+# 1. Parar o serviço
+sudo systemctl stop warsaw-container.service
+
+# 2. Editar o arquivo de serviço
+sudo nano /etc/systemd/system/warsaw-container.service
+
+# 3. Garantir que tenha estas linhas na seção [Service]:
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPost=/usr/bin/sleep 5
+Restart=on-failure
+RestartSec=10
+
+# 4. Recarregar e reiniciar
+sudo systemctl daemon-reload
+sudo systemctl start warsaw-container.service
+
+# 5. Verificar status (deve mostrar "active (exited)")
+sudo systemctl status warsaw-container.service
+
+# 6. Verificar socket do Warsaw
+ss -tulpn | grep 30900
+```
 
 ### Problema: Serviço não inicia
 
