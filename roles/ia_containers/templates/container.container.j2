@@ -1,7 +1,7 @@
 [Unit]
 Description={{ item.name | title }} Container para Stack de IA
-After={{ ai_pod_name }}.service
-Requires={{ ai_pod_name }}.service
+After={{ ai_pod_name }}-pod.service
+Requires={{ ai_pod_name }}-pod.service
 {% if item.name == 'open-webui' %}
 Wants=ollama.service
 {% endif %}

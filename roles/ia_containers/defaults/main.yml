@@ -3,7 +3,8 @@ ai_pod_name: "ai_pod"
 ai_pod_ports:
   - "6333:6333"
   - "3000:8080"
-ai_data_dir: "{{ lookup('env', 'HOME') }}/.local/share/ai_stack"
+  - "11434:11434"
+ai_data_dir: "{{ ansible_facts['user_dir'] }}/.local/share/ai_stack"
 
 ia_stack:
   - name: 'ollama'

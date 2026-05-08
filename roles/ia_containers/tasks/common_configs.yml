@@ -1,7 +1,11 @@
 ---
+- name: Habilitar lingering para o usuário (rootless systemd)
+  command: "loginctl enable-linger {{ ansible_facts['user_id'] }}"
+  changed_when: false
+
 - name: Garantir diretório de quadlets do usuário
   file:
-    path: "{{ lookup('env', 'HOME') }}/.config/containers/systemd"
+    path: "{{ ansible_facts['user_dir'] }}/.config/containers/systemd"
     state: directory
     mode: '0755'
 
@@ -15,14 +19,14 @@
 - name: Criar arquivo Quadlet do Pod de IA
   template:
     src: ai_pod.pod.j2
-    dest: "{{ lookup('env', 'HOME') }}/.config/containers/systemd/{{ ai_pod_name }}.pod"
+    dest: "{{ ansible_facts['user_dir'] }}/.config/containers/systemd/{{ ai_pod_name }}.pod"
     mode: '0644'
   notify: reload systemd user
 
 - name: Criar arquivos Quadlet dos containers de IA
   template:
     src: container.container.j2
-    dest: "{{ lookup('env', 'HOME') }}/.config/containers/systemd/{{ item.name }}.container"
+    dest: "{{ ansible_facts['user_dir'] }}/.config/containers/systemd/{{ item.name }}.container"
     mode: '0644'
   loop: "{{ ia_stack }}"
   notify: reload systemd user
@@ -32,7 +36,7 @@
 
 - name: Habilitar e iniciar serviço do Pod de IA
   systemd:
-    name: "{{ ai_pod_name }}.service"
+    name: "{{ ai_pod_name }}-pod.service"
     enabled: yes
     state: started
     scope: user
