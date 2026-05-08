@@ -1,0 +1,13 @@
+[Unit]
+Description=Pod para Stack de IA (Ollama, Qdrant, Open-WebUI)
+After=network-online.target
+Wants=network-online.target
+
+[Pod]
+PodName={{ ai_pod_name }}
+{% for port in ai_pod_ports %}
+PublishPort={{ port }}
+{% endfor %}
+
+[Install]
+WantedBy=default.target

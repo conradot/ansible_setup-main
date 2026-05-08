@@ -1,17 +1,18 @@
 # Role: IA Containers
 
-Esta role configura uma stack completa de IA usando Podman, incluindo Ollama, Qdrant e Open WebUI em um pod compartilhado.
+Esta role configura uma stack completa de IA usando **Podman Quadlets**, incluindo Ollama, Qdrant e Open WebUI em um pod compartilhado, gerenciados como serviços do usuário via systemd.
 
 ## Descrição
 
-A role `ia_containers` cria e gerencia containers para uma stack de IA local, permitindo executar modelos de linguagem (LLMs), banco de dados vetorial e interface web, tudo integrado e isolado em um pod Podman.
+A role `ia_containers` cria e gerencia containers para uma stack de IA local usando **Quadlets do Podman**. Os containers são gerenciados como serviços systemd do usuário, permitindo inicialização automática, gerenciamento via `systemctl --user`, e integração completa com o sistema.
 
 ## Requisitos
 
-- Podman instalado e configurado
+- Podman 4.4+ instalado e configurado (com suporte a Quadlets)
 - Ansible collection `containers.podman` instalada
 - Espaço em disco suficiente para modelos (recomendado: 50GB+)
 - GPU (opcional, mas recomendado para melhor performance)
+- systemd com suporte a serviços de usuário
 
 ## Variáveis
 
@@ -49,11 +50,49 @@ roles/ia_containers/
 │   └── main.yml              # Variáveis padrão
 ├── tasks/
 │   ├── main.yml              # Ponto de entrada
-│   ├── common_configs.yml    # Configurações comuns
+│   ├── common_configs.yml    # Configurações comuns (Quadlets)
 │   ├── fedora.yml            # Tarefas específicas do Fedora
 │   ├── opensuse_tumbleweed.yml
 │   └── opensuse_microos.yml
+├── templates/
+│   ├── ai_pod.pod.j2         # Template do Pod Quadlet
+│   └── container.container.j2 # Template dos Containers Quadlet
+├── handlers/
+│   └── main.yml              # Handler para reload do systemd
 └── README.md                 # Esta documentação
+```
+
+## O que são Quadlets?
+
+**Quadlets** são arquivos de configuração do Podman (`.container`, `.pod`, `.network`, `.volume`) que são automaticamente convertidos em unidades systemd. Eles permitem gerenciar containers como serviços nativos do sistema.
+
+### Vantagens dos Quadlets:
+
+1. **Gerenciamento via systemd** - Use `systemctl --user start/stop/enable/status`
+2. **Inicialização automática** - Containers iniciam com o login do usuário
+3. **Logs integrados** - Acesse logs com `journalctl --user -u <serviço>`
+4. **Dependências declarativas** - Defina ordem de inicialização (After/Requires)
+5. **Atualizações automáticas** - Suporte a `podman auto-update`
+6. **Configuração declarativa** - Formato INI simples e legível
+
+### Localização dos Quadlets:
+
+```
+~/.config/containers/systemd/
+├── ai_pod.pod              # Definição do Pod
+├── ollama.container        # Container Ollama
+├── qdrant.container        # Container Qdrant
+└── open-webui.container    # Container Open WebUI
+```
+
+Após criar os arquivos, o Podman gera automaticamente as unidades systemd:
+
+```
+~/.config/systemd/user/
+├── ai_pod.service
+├── ollama.service
+├── qdrant.service
+└── open-webui.service
 ```
 
 ## Funcionamento
@@ -212,30 +251,66 @@ curl http://127.0.0.1:11434/api/tags
 podman exec -it ollama ollama list
 ```
 
-### Gerenciar o Pod
+### Gerenciar os Serviços (Quadlets)
+
+Com Quadlets, você gerencia os containers como serviços systemd do usuário:
+
+```bash
+# Listar serviços da stack de IA
+systemctl --user list-units 'ai_pod*' 'ollama*' 'qdrant*' 'open-webui*'
+
+# Status dos serviços
+systemctl --user status ai_pod.service
+systemctl --user status ollama.service
+systemctl --user status qdrant.service
+systemctl --user status open-webui.service
+
+# Iniciar serviços
+systemctl --user start ai_pod.service
+systemctl --user start ollama.service
+
+# Parar serviços
+systemctl --user stop ollama.service
+systemctl --user stop ai_pod.service
+
+# Reiniciar serviços
+systemctl --user restart open-webui.service
+
+# Habilitar inicialização automática
+systemctl --user enable ai_pod.service
+systemctl --user enable ollama.service
+systemctl --user enable qdrant.service
+systemctl --user enable open-webui.service
+
+# Desabilitar inicialização automática
+systemctl --user disable ollama.service
+
+# Ver logs em tempo real
+journalctl --user -u ollama.service -f
+journalctl --user -u qdrant.service -f
+journalctl --user -u open-webui.service -f
+
+# Ver logs das últimas 50 linhas
+journalctl --user -u ai_pod.service -n 50
+
+# Ver logs desde hoje
+journalctl --user -u ollama.service --since today
+```
+
+### Comandos Podman Tradicionais (ainda funcionam)
 
 ```bash
 # Status do pod e containers
 podman pod ps
 podman ps --pod
 
-# Parar pod (para todos os containers)
-podman pod stop ai_pod
-
-# Iniciar pod
-podman pod start ai_pod
-
-# Reiniciar pod
-podman pod restart ai_pod
-
-# Remover pod (remove todos os containers)
-podman pod rm -f ai_pod
-
-# Logs
+# Logs diretos
 podman logs ollama
 podman logs qdrant
 podman logs open-webui
 ```
+
+**Nota:** Com Quadlets, prefira usar `systemctl --user` e `journalctl --user` para melhor integração com o sistema.
 
 ### Gerenciar Modelos Ollama
 
@@ -340,41 +415,74 @@ Edite `roles/ia_containers/tasks/common_configs.yml`:
 ```bash
 ansible-playbook -i inventory.yml site.yml --tags ia_containers \
   -e "ai_data_dir=/mnt/storage/ai_stack"
+
+## Gerenciamento com Quadlets vs Podman Direto
+
+| Aspecto | Quadlets (Novo) | Podman Direto (Antigo) |
+|---------|-----------------|------------------------|
+| **Iniciar** | `systemctl --user start ollama.service` | `podman start ollama` |
+| **Parar** | `systemctl --user stop ollama.service` | `podman stop ollama` |
+| **Status** | `systemctl --user status ollama.service` | `podman ps` |
+| **Logs** | `journalctl --user -u ollama.service -f` | `podman logs -f ollama` |
+| **Auto-start** | `systemctl --user enable ollama.service` | Scripts personalizados |
+| **Dependências** | Declarativas (After/Requires) | Manuais |
+| **Integração** | Nativa com systemd | Separada |
+| **Configuração** | Arquivos .container/.pod | Linha de comando |
+
 ```
 
 ## Troubleshooting
 
-### Problema: Containers não iniciam
+### Problema: Serviços não iniciam
 
 **Sintoma:**
 ```bash
-$ podman ps --pod
-# Containers em estado "Exited"
+$ systemctl --user status ollama.service
+# Estado: failed ou inactive
 ```
 
 **Diagnóstico:**
 ```bash
-# Ver logs
-podman logs ollama
-podman logs qdrant
-podman logs open-webui
+# Ver logs do serviço
+journalctl --user -u ollama.service -n 50
 
 # Ver status detalhado
-podman inspect ollama
+systemctl --user status ollama.service -l
+
+# Verificar arquivos Quadlet
+ls -la ~/.config/containers/systemd/
+
+# Verificar se systemd gerou as unidades
+systemctl --user list-unit-files | grep -E '(ai_pod|ollama|qdrant|open-webui)'
 ```
 
 **Soluções:**
 
-1. **Verificar permissões:**
+1. **Recarregar daemon do systemd:**
+   ```bash
+   systemctl --user daemon-reload
+   ```
+
+2. **Verificar permissões dos diretórios:**
    ```bash
    ls -la ~/.local/share/ai_stack/
    chmod -R 755 ~/.local/share/ai_stack/
    ```
 
-2. **Recriar containers:**
+3. **Recriar Quadlets:**
    ```bash
-   podman pod rm -f ai_pod
+   # Parar serviços
+   systemctl --user stop ollama.service qdrant.service open-webui.service ai_pod.service
+   
+   # Re-executar role
    ansible-playbook -i inventory.yml site.yml --tags ia_containers
+   ```
+
+4. **Verificar dependências:**
+   ```bash
+   # Certifique-se que o pod está rodando antes dos containers
+   systemctl --user start ai_pod.service
+   systemctl --user start ollama.service
    ```
 
 ### Problema: Open WebUI não conecta ao Ollama

@@ -1,0 +1,7 @@
+---
+- name: reload systemd user
+  systemd:
+    daemon_reload: yes
+    scope: user
+
+# Made with Bob

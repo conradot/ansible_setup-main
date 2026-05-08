@@ -1,0 +1,32 @@
+[Unit]
+Description={{ item.name | title }} Container para Stack de IA
+After={{ ai_pod_name }}.service
+Requires={{ ai_pod_name }}.service
+{% if item.name == 'open-webui' %}
+Wants=ollama.service
+{% endif %}
+
+[Container]
+ContainerName={{ item.name }}
+Image={{ item.image }}
+Pod={{ ai_pod_name }}.pod
+{% if item.volumes is defined %}
+{% for volume in item.volumes %}
+Volume={{ volume }}
+{% endfor %}
+{% endif %}
+{% if item.env is defined %}
+{% for key, value in item.env.items() %}
+Environment={{ key }}={{ value }}
+{% endfor %}
+{% endif %}
+AutoUpdate=registry
+
+[Service]
+Restart=always
+{% if item.name == 'ollama' %}
+TimeoutStartSec=900
+{% endif %}
+
+[Install]
+WantedBy=default.target
