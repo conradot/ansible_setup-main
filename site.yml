@@ -7,7 +7,7 @@
     - role: host_config
       tags: [ never, setup, host ]
     - role: ia_containers
-      tags: [ ia ]
+      tags: [ never, ia ]
     - role: dev_env
       tags: [ dev ]
     - role: zsh

@@ -118,3 +118,30 @@
 #        path: "{{ lookup('env', 'HOME') }}/.bashrc"
 #        line: 'export PATH="$HOME/.local/bin:$PATH"'
 #        state: present
+
+- name: Instalar Development Tools no Dev Workspace
+  command: "distrobox enter {{ dev_box_name }} -- sudo dnf groupinstall 'Development Tools' -y"
+  register: dev_tools_install
+  changed_when: "'Complete!' in dev_tools_install.stdout"
+
+- name: Clonar repositório llama.cpp
+  command: "distrobox enter {{ dev_box_name }} -- git clone https://github.com/ggerganov/llama.cpp {{ lookup('env', 'HOME') }}/llama.cpp"
+  args:
+    creates: "{{ lookup('env', 'HOME') }}/llama.cpp"
+
+- name: Configurar llama.cpp com CMake
+  command: "distrobox enter {{ dev_box_name }} -- bash -c 'cd ~/llama.cpp && cmake -S ~/llama.cpp -B ~/llama.cpp/build -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF -DCMAKE_CXX_FLAGS=\"-march=native\" -DLLAMA_OPENSSL=ON'"
+  args:
+    creates: "{{ lookup('env', 'HOME') }}/llama.cpp/build/CMakeCache.txt"
+
+- name: Compilar llama.cpp
+  command: "distrobox enter {{ dev_box_name }} -- bash -c 'cmake --build ~/llama.cpp/build --config Release -j 12'"
+  register: llama_compile
+  changed_when: "'Built target' in llama_compile.stdout"
+
+- name: Exportar binários do llama.cpp para o host
+  command: "distrobox enter {{ dev_box_name }} -- distrobox-export --bin ~/llama.cpp/build/bin/{{ item }} --export-path ~/.local/bin"
+  loop:
+    - llama-cli
+    - llama-server
+  ignore_errors: true
