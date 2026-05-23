@@ -64,6 +64,8 @@ chmod +x first-run.ssh
 ## 🚀 Uso e Tags
 
 Você pode rodar partes específicas do setup usando tags:
+distrobox enter dev-fedora -- bash -c 'source .venv/bin/activate && ansible-playbook site.yml --tags ollama'
+
 
 | Tag | Descrição |
 | :--- | :--- |
